@@ -181,3 +181,35 @@ We welcome contributions! Please:
 2. Create a feature branch
 3. Make your changes
 4. Submit a pull request
+
+
+
+1. 程序入口
+/usr/local/bin/uv --directory ./mcp-gerrit run mcp-gerrit
+
+2.入口查找
+
+2.1 查找同名包
+在 src/ 或项目根目录下查找 mcp_gerrit/ 目录（即包）。
+包下需有 __init__.py 或 __main__.py。
+
+2.2 查找同名模块
+查找 mcp_gerrit.py 文件。
+
+2.3 查找 pyproject.toml/setup.py 的 entry_points
+如果有 [project.scripts] 或 entry_points 配置，uv/pipx/pip 会用这里指定的入口
+
+这里找到 pyproject.toml，并配置了如下内容：
+
+ [project.scripts]
+  mcp-gerrit = "src.transport.cli:main"
+
+那么 uv run mcp-gerrit 会直接运行 src/transport/cli.py 的 main()。
+
+
+
+
+
+
+
+

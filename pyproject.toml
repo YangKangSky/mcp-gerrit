@@ -33,7 +33,7 @@ dev = [
 ]
 
 [project.scripts]
-mcp-gerrit = "gerrit.cli:main"
+mcp-gerrit = "transport.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
