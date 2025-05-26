@@ -1,0 +1,10 @@
+{
+    "name": "mcp-gerrit",
+    "version": "0.1.0",
+    "description": "MCP server for reviewing Gerrit changes",
+    "entrypoint": "src.gerrit.server:mcp",
+    "dependencies": [
+        "python-dotenv",
+        "requests"
+    ]
+} 

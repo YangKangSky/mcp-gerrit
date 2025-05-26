@@ -12,8 +12,17 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP, Context
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+LOG_FILE = os.path.join(os.path.dirname(__file__), "mcp_server.log")
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler() 
+    ]
+)
 logger = logging.getLogger(__name__)
+logger.info(f"Logging to file: {LOG_FILE}")
 
 # Load environment variables
 load_dotenv()
@@ -36,18 +45,31 @@ def make_gerrit_rest_request(ctx: Context, endpoint: str) -> Dict[str, Any]:
     if not endpoint.startswith('a/'):
         endpoint = f'a/{endpoint}'
     
-    url = f"https://{gerrit_ctx.host}/{endpoint}"
-    auth = requests.auth.HTTPDigestAuth(gerrit_ctx.user, gerrit_ctx.http_password)
+    # Check if host already contains protocol prefix
+    if gerrit_ctx.host.startswith(('http://', 'https://')):
+        # Use the protocol provided by user in GERRIT_HOST
+        url = f"{gerrit_ctx.host}/{endpoint}"
+    else:
+        # Default to HTTPS if no protocol is specified
+        url = f"https://{gerrit_ctx.host}/{endpoint}"
+    
+    # Gerrit typically uses HTTPBasicAuth, not HTTPDigestAuth
+    auth = requests.auth.HTTPBasicAuth(gerrit_ctx.user, gerrit_ctx.http_password)
     
     try:
         headers = {
             'Accept': 'application/json',
             'User-Agent': 'GerritReviewMCP/1.0'
         }
-        response = requests.get(url, auth=auth, headers=headers, verify=True)
+        logger.info(f"Making request to: {url}")
+        # Internal Gerrit servers may use self-signed certificates, so allow verification control
+        verify = os.getenv("GERRIT_VERIFY_SSL", "True").lower() != "false"
+        response = requests.get(url, auth=auth, headers=headers, verify=verify)
+        
         
         if response.status_code == 401:
-            logger.error("Authentication failed. Check your credentials.")
+            logger.error(f"Authentication failed for user '{gerrit_ctx.user}' at '{url}'. Check your credentials.")
+            logger.error(f"Response: {response.text}")
             raise Exception("Authentication failed. Please check your Gerrit HTTP password in your account settings.")
             
         response.raise_for_status()
@@ -76,6 +98,11 @@ async def gerrit_lifespan(server: FastMCP) -> AsyncIterator[GerritContext]:
     user = os.getenv("GERRIT_USER", "")
     http_password = os.getenv("GERRIT_HTTP_PASSWORD", "")
     
+    # Remove trailing slash from host if present
+    if host and host.endswith("/"):
+        host = host[:-1]
+        logger.info(f"Removed trailing slash from GERRIT_HOST: {host}")
+    
     if not all([host, user]):
         logger.error("Missing required environment variables:")
         if not host: logger.error("- GERRIT_HOST not set")
@@ -97,7 +124,7 @@ async def gerrit_lifespan(server: FastMCP) -> AsyncIterator[GerritContext]:
 # Create MCP server
 mcp = FastMCP(
     "Gerrit Review",
-    description="MCP server for reviewing Gerrit changes",
+    description="MCP server for reviewing Gerrit changes. Set GERRIT_HOST with protocol prefix (http:// or https://)",
     lifespan=gerrit_lifespan,
     dependencies=["python-dotenv", "requests"]
 )
@@ -250,7 +277,8 @@ def fetch_patchset_diff(ctx: Context, change_id: str, base_patchset: str, target
         "files": changed_files
     }
 
-if __name__ == "__main__":
+def run_server():
+    """Run the MCP server."""
     try:
         logger.info("Starting Gerrit Review MCP server")
         # Initialize and run the server
