@@ -7,7 +7,7 @@ import requests
 from typing import Dict, Any
 
 # 建议从utils.logger导入logger
-from src.utils.logger import logger
+from utils.logger import logger
 
 def make_gerrit_rest_request(ctx, endpoint: str) -> Dict[str, Any]:
     """Make a REST API request to Gerrit and handle the response"""

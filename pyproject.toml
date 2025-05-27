@@ -18,8 +18,13 @@ classifiers = [
 ]
 dependencies = [
     "mcp[cli]>=1.6.0",
+    "mcp>=1.8.0,<2.0.0",
     "python-dotenv>=1.0.0",
     "requests>=2.31.0",
+    "cachetools>=5.0.0",
+    "starlette>=0.36.3",
+    "uvicorn>=0.29.0",
+    "fastmcp>=2.3.4,<2.4.0",
 ]
 
 [project.optional-dependencies]
@@ -33,7 +38,7 @@ dev = [
 ]
 
 [project.scripts]
-mcp-gerrit = "transport.cli:main"
+mcp-gerrit = "servers.main:run_server"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
