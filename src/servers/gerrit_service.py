@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP, Context
 from utils.logger import logger
 from data.gerrit_api import make_gerrit_rest_request
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 # Configuration and context
 load_dotenv()
@@ -209,4 +209,58 @@ def fetch_patchset_diff(
         "base_patchset": base_patchset,
         "target_patchset": target_patchset,
         "files": changed_files
-    } 
+    }
+
+@gerrit_mcp.tool()
+def get_repository_path_from_change(
+    ctx: Context,
+    change_url: str,
+    clone_url_type: str = "http"
+) -> Dict[str, Any]:
+    """
+    [tags: read, gerrit]
+    Extract full clone URL from a Gerrit Change Request URL.
+
+    Args:
+        ctx1 (Context): The MCP request context, including Gerrit credentials.
+        change_url (str): The Gerrit Change Request URL (e.g., 'http://gerrit01.sdt.com/c/RDK/qjybrowser/+/40261').
+        clone_url_type (str): 'http' (default) or 'ssh'.
+
+    Returns:
+        Dict[str, Any]: A dictionary containing:
+            - full_clone_url: The full clone URL (http(s) or ssh)
+    """
+    logger.info(f"[Gerrit] get_repository_path_from_change called with change_url={change_url}, clone_url_type={clone_url_type}")
+    import os
+    try:
+        # 1. 解析 change_url
+        parsed = urlparse(change_url)
+        protocol = parsed.scheme
+        host = parsed.hostname
+        path_parts = parsed.path.strip('/').split('/')
+        plus_index = path_parts.index('+') if '+' in path_parts else -1
+        if plus_index > 1:
+            project = '/'.join(path_parts[1:plus_index])
+            change_id = path_parts[plus_index + 1]
+        else:
+            change_id = path_parts[-1]
+            change_info = fetch_gerrit_change(ctx, change_id)
+            project = change_info['project']
+
+        # 2. 获取 user
+        user = getattr(ctx, 'user', None) or os.getenv("GERRIT_USER", "")
+
+        # 3. 拼接 full_clone_url
+        if clone_url_type == "ssh":
+            user_prefix = f"{user}@" if user else ""
+            full_clone_url = f"ssh://{user_prefix}{host}:29418/{project}.git"
+        else:
+            user_prefix = f"{user}@" if user else ""
+            full_clone_url = f"{protocol}://{user_prefix}{host}/a/{project}.git"
+
+        return {
+            "full_clone_url": full_clone_url
+        }
+    except Exception as e:
+        logger.error(f"[Gerrit] Error extracting repository path: {str(e)}")
+        raise ValueError(f"Failed to extract repository path: {str(e)}") 
